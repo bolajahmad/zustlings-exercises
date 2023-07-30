@@ -27,7 +27,7 @@ mod verify;
 const VERSION: &str = "4.7.0";
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Zustlings is a collection of small exercises to prepare you for Zero Knowledge Rust 
+/// Zustlings is a collection of small exercises to prepare you for Zero Knowledge Rust
 struct Args {
     /// show outputs from the test exercises
     #[argh(switch)]
@@ -42,9 +42,9 @@ struct Args {
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand)]
 enum Subcommands {
-    Verify(VerifyArgs),    
+    Verify(VerifyArgs),
     Run(RunArgs),
-    Hint(HintArgs),    
+    Hint(HintArgs),
     Homework(HomeworkArgs),
 }
 
@@ -61,7 +61,6 @@ struct RunArgs {
     /// the name of the exercise
     name: String,
 }
-
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "homework")]
@@ -82,15 +81,12 @@ struct HintArgs {
 }
 
 fn main() {
-    
-    let args: Args = argh::from_env();    
+    let args: Args = argh::from_env();
 
     if args.version {
         println!("v{}", VERSION);
         std::process::exit(0);
-    }    
-
-
+    }
 
     if !Path::new("info.toml").exists() {
         println!(
@@ -118,10 +114,9 @@ fn main() {
         std::process::exit(0);
     });
 
-    println!("\n\nEND\n\n");    
+    println!("\n\nEND\n\n");
 
-    match command {  
-
+    match command {
         Subcommands::Run(subargs) => {
             let exercise = find_exercise(&subargs.name, &exercises);
             run(exercise, verbose).unwrap_or_else(|_| std::process::exit(1));
@@ -135,26 +130,35 @@ fn main() {
         Subcommands::Verify(_subargs) => {
             verify(&exercises, verbose).unwrap_or_else(|_| std::process::exit(1));
         }
-        
+
         Subcommands::Homework(subargs) => match homework(&exercises, verbose, subargs.name) {
             Err(e) => {
-                println!("Error: Could not watch your progress. Error message was {:?}.", e);
+                println!(
+                    "Error: Could not watch your progress. Error message was {:?}.",
+                    e
+                );
                 println!("Most likely you've run out of disk space or your 'inotify limit' has been reached.");
                 std::process::exit(1);
             }
             Ok(WatchStatus::Finished) => {
-                println!("{emoji} All exercises completed! {emoji}", emoji = Emoji("🎉", "★"));
+                println!(
+                    "{emoji} All exercises completed! {emoji}",
+                    emoji = Emoji("🎉", "★")
+                );
                 println!("\n{}\n", FENISH_LINE);
             }
             Ok(WatchStatus::Unfinished) => {
                 println!("We hope you're enjoying learning about Rust!");
                 println!("If you want to continue working on the exercises at a later point, you can simply run `zustlings watch` again");
             }
-        },   
+        },
     }
 }
 
-fn spawn_watch_shell(failed_exercise_hint: &Arc<Mutex<Option<String>>>, should_quit: Arc<AtomicBool>) {
+fn spawn_watch_shell(
+    failed_exercise_hint: &Arc<Mutex<Option<String>>>,
+    should_quit: Arc<AtomicBool>,
+) {
     let failed_exercise_hint = Arc::clone(failed_exercise_hint);
     println!("Welcome to watch mode! You can type 'help' to get an overview of the commands you can use here.");
     thread::spawn(move || loop {
@@ -191,16 +195,22 @@ fn spawn_watch_shell(failed_exercise_hint: &Arc<Mutex<Option<String>>>, should_q
 
 fn find_exercise<'a>(name: &str, exercises: &'a [Exercise]) -> &'a Exercise {
     if name.eq("next") {
-        exercises.iter().find(|e| !e.looks_done()).unwrap_or_else(|| {
-            println!("🎉 Congratulations! You have done all the exercises!");
-            println!("🔚 There are no more exercises to do next!");
-            std::process::exit(1)
-        })
+        exercises
+            .iter()
+            .find(|e| !e.looks_done())
+            .unwrap_or_else(|| {
+                println!("🎉 Congratulations! You have done all the exercises!");
+                println!("🔚 There are no more exercises to do next!");
+                std::process::exit(1)
+            })
     } else {
-        exercises.iter().find(|e| e.name == name).unwrap_or_else(|| {
-            println!("No exercise found for '{}'!", name);
-            std::process::exit(1)
-        })
+        exercises
+            .iter()
+            .find(|e| e.name == name)
+            .unwrap_or_else(|| {
+                println!("No exercise found for '{}'!", name);
+                std::process::exit(1)
+            })
     }
 }
 
@@ -211,79 +221,86 @@ enum WatchStatus {
 
 // Redo watch but with only the homework that has been given out
 // pass on the way here the subset
-fn homework(exercises: &[Exercise], verbose: bool, homework_number: String) -> notify::Result<WatchStatus> {
-   
-     /* Clears the terminal with an ANSI escape code.
+fn homework(
+    exercises: &[Exercise],
+    verbose: bool,
+    homework_number: String,
+) -> notify::Result<WatchStatus> {
+    /* Clears the terminal with an ANSI escape code.
     Works in UNIX and newer Windows terminals. */
     fn clear_screen() {
         println!("\x1Bc");
     }
 
     println!("exercises: {:?}", exercises);
-    println!("exercise[0]: {:?}", exercises.len());    
+    println!("exercise[0]: {:?}", exercises.len());
 
     let (tx, rx) = channel();
     let should_quit = Arc::new(AtomicBool::new(false));
 
-    // load from the other dir 
+    // load from the other dir
     let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_secs(2))?;
 
-    // watch for changes anywhere in this folder (TODO check subdir check)    
-    watcher.watch(Path::new("./homeworks"), RecursiveMode::Recursive)?;  // I think watcher looks for file changes
-    clear_screen(); 
+    // watch for changes anywhere in this folder (TODO check subdir check)
+    watcher.watch(Path::new("./homeworks"), RecursiveMode::Recursive)?; // I think watcher looks for file changes
+    clear_screen();
 
-    let mut homework_path: String = "./homeworks/homework".to_owned();        
+    let mut homework_path: String = "./homeworks/homework".to_owned();
     homework_path.push_str(&homework_number);
-    
+
     let to_owned_hint = |t: &Exercise| t.hint.to_owned();
 
     // Check if directory exists
-    let b = Path::new(&homework_path).is_dir();   //.is_file();
-    
+    let _b = Path::new(&homework_path).is_dir(); //.is_file();
+
     // Filter against what's in the dirctory for number 1
-    let paths = fs::read_dir(homework_path).expect("Can't find homework. Have you run the wrong homework number?");
+    let paths = fs::read_dir(homework_path)
+        .expect("Can't find homework. Have you run the wrong homework number?");
 
     // Vec of things that are present in this homework
     let mut exercise_names: Vec<String> = Vec::new();
 
-    for path in paths {            
-        let strr: String = path.unwrap().path().display().to_string();       
-        let res: Vec<String> = strr.split("/").map(|s| s.to_string()).collect();     
+    for path in paths {
+        let strr: String = path.unwrap().path().display().to_string();
+        let res: Vec<String> = strr.split("/").map(|s| s.to_string()).collect();
         exercise_names.push(res.last().unwrap().clone());
     }
-    
+
     let mut exercises_filtered: Vec<exercise::Exercise> = Vec::new();
 
     println!("\n");
 
     // filter out from the exercises list.
     // Include based on matching homework subdirectories
-    for exercise in exercises {            
-        
-        let path_string: String = exercise.path.clone().into_os_string().into_string().unwrap();        
-        let path_elements: Vec<&str> = path_string.split('/').collect();       
+    for exercise in exercises {
+        let path_string: String = exercise
+            .path
+            .clone()
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let path_elements: Vec<&str> = path_string.split('/').collect();
 
-        if path_elements.len() > 3{
-
-            let exercise_dir: String = String::from(path_elements.clone()[2]);           
+        if path_elements.len() > 3 {
+            let exercise_dir: String = String::from(path_elements.clone()[2]);
 
             // retrieve 3rd variable from teh path and check for match
             if exercise_names.contains(&exercise_dir) {
                 exercises_filtered.push(exercise.clone());
             }
         }
-    }    
-    
+    }
+
     // println!("\nExercises in this homework set:");
-    // for exercise in exercises_filtered.clone() {           
+    // for exercise in exercises_filtered.clone() {
     //     println!("exercises_filtered: {:?}",exercise.name);
-    // }    
+    // }
 
     // pass here for looping till done
     let failed_exercise_hint = match verify(exercises_filtered.iter(), verbose) {
         Ok(_) => return Ok(WatchStatus::Finished),
         Err(exercise) => Arc::new(Mutex::new(Some(to_owned_hint(exercise)))),
-    };    
+    };
 
     println!("Spawning homeworkd watch shell");
     spawn_watch_shell(&failed_exercise_hint, Arc::clone(&should_quit));
@@ -297,7 +314,11 @@ fn homework(exercises: &[Exercise], verbose: bool, homework_number: String) -> n
                             .iter()
                             .skip_while(|e| !filepath.ends_with(&e.path))
                             // .filter(|e| filepath.ends_with(&e.path))
-                            .chain(exercises_filtered.iter().filter(|e| !e.looks_done() && !filepath.ends_with(&e.path)));
+                            .chain(
+                                exercises_filtered
+                                    .iter()
+                                    .filter(|e| !e.looks_done() && !filepath.ends_with(&e.path)),
+                            );
                         clear_screen();
 
                         match verify(pending_exercises, verbose) {
@@ -322,7 +343,6 @@ fn homework(exercises: &[Exercise], verbose: bool, homework_number: String) -> n
         }
     }
 }
-
 
 fn rustc_exists() -> bool {
     Command::new("rustc")
