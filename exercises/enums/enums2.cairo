@@ -1,14 +1,16 @@
 // enums2.cairo
 // Execute `starklings hint enums2` or use the `hint` watch subcommand for a hint.
 
-// I AM NOT DONE
-
 use debug::PrintTrait;
 use array::ArrayTrait;
 use traits::Into;
 
 #[derive(Copy, Drop)]
 enum Message { // TODO: define the different variants used below
+    Quit: (),
+    Echo: felt252,
+    Move: (u8, u8),
+    ChangeColor: (u64, u64, u64),
 }
 
 
@@ -32,6 +34,15 @@ impl MessageImpl of MessageTrait::<Message> {
     fn call(self: Message) {
         self.print()
     }
+
+    // fn print(self: Message) {
+    //     match self {
+    //         Message::Quit(()) => ('Quit').print(),
+    //         Message::Echo(()) => ('Echo').print(),
+    //         Message::Move(()) => ('Move').print(),
+    //         Message::ChangeColor(()) => ('ChangeColor').print()
+    //     }
+    // }
 }
 
 fn print_messages_recursive(messages: Array<Message>, index: u32) {
